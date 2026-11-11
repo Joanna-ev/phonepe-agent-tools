@@ -1,0 +1,53 @@
+[
+  {
+    "merchant_id": "M1001",
+    "name": "Ramesh Kirana",
+    "phone": "9000000001",
+    "plan": "monthly",
+    "monthly_fee_inr": 125,
+    "tenure_months": 9,
+    "payments_last_month": 410,
+    "language": "Hindi",
+    "device": {
+      "status": "healthy",
+      "battery": 78,
+      "signal": "good",
+      "last_alert": "10 minutes ago"
+    },
+    "cancellation_requests_before": 0
+  },
+  {
+    "merchant_id": "M1002",
+    "name": "Fathima Tea Stall",
+    "phone": "9000000002",
+    "plan": "monthly",
+    "monthly_fee_inr": 125,
+    "tenure_months": 4,
+    "payments_last_month": 260,
+    "language": "Malayalam",
+    "device": {
+      "status": "offline",
+      "battery": 4,
+      "signal": "weak",
+      "last_alert": "6 days ago"
+    },
+    "cancellation_requests_before": 0
+  },
+  {
+    "merchant_id": "M1003",
+    "name": "Suresh Mobiles",
+    "phone": "9000000003",
+    "plan": "zero_rental",
+    "monthly_fee_inr": 25,
+    "tenure_months": 14,
+    "payments_last_month": 150,
+    "language": "Tamil",
+    "device": {
+      "status": "healthy",
+      "battery": 91,
+      "signal": "good",
+      "last_alert": "5 minutes ago"
+    },
+    "cancellation_requests_before": 1
+  }
+]
