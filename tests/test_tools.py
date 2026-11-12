@@ -291,6 +291,29 @@ def test_escalation_defaults_false_and_optional_fields(temp_tickets):
     assert ticket["reason"] is None and ticket["summary"] is None
 
 
+@pytest.mark.parametrize("merchant_id", ["UNKNOWN", "unknown", " Unknown "])
+def test_schedule_callback_for_unknown_merchant(merchant_id, temp_tickets):
+    out = vapi_call("schedule_callback", {
+        "merchant_id": merchant_id,
+        "time": "today 4 PM",
+        "reason": "NOT_WORKING",
+        "escalation": True,
+        "summary": "Caller could not be identified by phone.",
+    })
+    assert out["status"] == "scheduled" and out["ticket_id"] == "CB-1001"
+    (ticket,) = json.loads(temp_tickets.read_text(encoding="utf-8"))
+    assert ticket["merchant_id"] == "UNKNOWN"
+    assert ticket["merchant_name"] is None and ticket["phone"] is None
+    assert ticket["summary"] == "Caller could not be identified by phone."
+
+
+def test_unknown_is_only_special_for_schedule_callback(temp_tickets):
+    assert "error" in vapi_call("schedule_callback", {"merchant_id": "M9999", "time": "4 PM"})
+    assert "error" in vapi_call("run_device_diagnostics", {"merchant_id": "UNKNOWN"})
+    assert "error" in vapi_call("process_cancellation", {"merchant_id": "UNKNOWN", "confirm": True})
+    assert not temp_tickets.exists()
+
+
 def test_schedule_callback_requires_time(temp_tickets):
     assert vapi_call("schedule_callback", {"merchant_id": "M1001"}) == {"error": "Missing time."}
     assert not temp_tickets.exists()

@@ -25,6 +25,7 @@ DATA_DIR = Path(__file__).resolve().parent / "data"
 TICKETS_PATH = Path(os.environ.get("TICKETS_PATH", DATA_DIR / "tickets.json"))
 CANCELLATIONS_PATH = Path(os.environ.get("CANCELLATIONS_PATH", DATA_DIR / "cancellations.json"))
 TICKET_ID_START = 1001
+UNKNOWN_MERCHANT_ID = "UNKNOWN"
 
 # Pickup dates are quoted to Indian merchants; Render runs in UTC.
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -298,7 +299,11 @@ def schedule_callback(
     escalation: Any = False,
     summary: str | None = None,
 ) -> dict:
-    m = get_merchant(merchant_id)
+    # The agent passes UNKNOWN when it could not identify the caller; still log the ticket.
+    if str(merchant_id or "").strip().upper() == UNKNOWN_MERCHANT_ID:
+        m = {"merchant_id": UNKNOWN_MERCHANT_ID, "name": None, "phone": None}
+    else:
+        m = get_merchant(merchant_id)
     if not str(time or "").strip():
         raise ToolError("Please tell me a time for the callback.")
     escalation = _to_bool(escalation)

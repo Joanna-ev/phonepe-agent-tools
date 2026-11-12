@@ -55,7 +55,9 @@ creating a duplicate.
 ### Callback tickets
 
 `schedule_callback` appends tickets to `data/tickets.json`. The file is created on first use and git-ignored.
-Set `TICKETS_PATH` to store them elsewhere. Ticket IDs continue from the highest existing `CB-` number, starting at `CB-1001`.
+Set `TICKETS_PATH` to store them elsewhere.
+`merchant_id: "UNKNOWN"` (any case) is accepted when the caller could not be identified; the ticket is saved with no
+merchant name or phone, so put identifying details in `summary`. Other unrecognised IDs are still rejected. Ticket IDs continue from the highest existing `CB-` number, starting at `CB-1001`.
 Note that Render's filesystem is ephemeral, so tickets are lost on every redeploy or restart unless you attach a persistent disk
 and point `TICKETS_PATH` at it. Writes are serialised with an in-process lock, so run a single worker.
 
