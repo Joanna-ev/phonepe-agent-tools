@@ -23,6 +23,7 @@ logger = logging.getLogger("vapi_tools")
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
 TICKETS_PATH = Path(os.environ.get("TICKETS_PATH", DATA_DIR / "tickets.json"))
+CANCELLATIONS_PATH = Path(os.environ.get("CANCELLATIONS_PATH", DATA_DIR / "cancellations.json"))
 TICKET_ID_START = 1001
 
 # Pickup dates are quoted to Indian merchants; Render runs in UTC.
@@ -30,7 +31,7 @@ IST = timezone(timedelta(hours=5, minutes=30))
 
 LOW_BATTERY_PERCENT = 15
 
-_tickets_lock = threading.Lock()
+_store_lock = threading.Lock()  # guards tickets.json and cancellations.json
 
 
 class ToolError(Exception):
@@ -214,13 +215,17 @@ def apply_retention_action(merchant_id: str, action: str, language: str | None =
     return {"status": "applied", "merchant_id": m["merchant_id"], "action": action, "message": message}
 
 
-def process_cancellation(merchant_id: str, reason_code: str | None = None) -> dict:
+def process_cancellation(merchant_id: str, confirm: Any, reason_code: str | None = None) -> dict:
+    """confirm=false returns a quote only; confirm=true records the cancellation.
+
+    The agent must read the quote's fee and pickup details to the merchant and
+    get their agreement before calling again with confirm=true.
+    """
     m = get_merchant(merchant_id)
     cfg = RULES["cancellation"]
     fee = cancellation_fee(m["tenure_months"], m["cancellation_requests_before"])
     pickup = today_ist() + timedelta(days=cfg["pickup_days_from_today"])
-    return {
-        "status": "cancellation_confirmed",
+    details = {
         "merchant_id": m["merchant_id"],
         "reason_code": normalise_reason(reason_code) or None,
         "cancellation_fee_inr": fee,
@@ -229,33 +234,61 @@ def process_cancellation(merchant_id: str, reason_code: str | None = None) -> di
         "pickup_items": cfg["pickup_items"],
     }
 
+    if not _to_bool(confirm):
+        return {
+            "status": "quote",
+            **details,
+            "message": "Not cancelled yet. Tell the merchant the fee and pickup, then confirm.",
+        }
 
-def _read_tickets() -> list[dict]:
-    if not TICKETS_PATH.exists():
+    with _store_lock:
+        records = _read_list(CANCELLATIONS_PATH)
+        # Retries or a repeated confirm must not create a second cancellation.
+        existing = next((r for r in records if r["merchant_id"] == m["merchant_id"]), None)
+        if existing is None:
+            existing = {
+                "cancellation_id": _next_id(records, "cancellation_id", "CN"),
+                **details,
+                "merchant_name": m["name"],
+                "created_at": datetime.now(IST).isoformat(timespec="seconds"),
+            }
+            records.append(existing)
+            _write_list(CANCELLATIONS_PATH, records)
+            logger.info("Cancellation recorded: %s for %s", existing["cancellation_id"], m["merchant_id"])
+
+    return {
+        "status": "cancellation_confirmed",
+        "cancellation_id": existing["cancellation_id"],
+        **{k: existing[k] for k in details},
+    }
+
+
+def _read_list(path: Path) -> list[dict]:
+    if not path.exists():
         return []
-    with open(TICKETS_PATH, encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         return json.load(f)  # a corrupt file raises rather than being overwritten
 
 
-def _write_tickets(tickets: list[dict]) -> None:
-    TICKETS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=TICKETS_PATH.parent, prefix=".tickets-", suffix=".json")
+def _write_list(path: Path, items: list[dict]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{path.stem}-", suffix=".json")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(tickets, f, indent=2, ensure_ascii=False)
-        os.replace(tmp, TICKETS_PATH)
+            json.dump(items, f, indent=2, ensure_ascii=False)
+        os.replace(tmp, path)
     except BaseException:
         os.unlink(tmp)
         raise
 
 
-def _next_ticket_id(tickets: list[dict]) -> str:
+def _next_id(items: list[dict], key: str, prefix: str) -> str:
     numbers = [
         int(match.group(1))
-        for t in tickets
-        if (match := re.fullmatch(r"CB-(\d+)", str(t.get("ticket_id", ""))))
+        for item in items
+        if (match := re.fullmatch(rf"{prefix}-(\d+)", str(item.get(key, ""))))
     ]
-    return f"CB-{max(numbers, default=TICKET_ID_START - 1) + 1}"
+    return f"{prefix}-{max(numbers, default=TICKET_ID_START - 1) + 1}"
 
 
 def schedule_callback(
@@ -270,10 +303,10 @@ def schedule_callback(
         raise ToolError("Please tell me a time for the callback.")
     escalation = _to_bool(escalation)
 
-    with _tickets_lock:
-        tickets = _read_tickets()
+    with _store_lock:
+        tickets = _read_list(TICKETS_PATH)
         ticket = {
-            "ticket_id": _next_ticket_id(tickets),
+            "ticket_id": _next_id(tickets, "ticket_id", "CB"),
             "merchant_id": m["merchant_id"],
             "merchant_name": m["name"],
             "phone": m["phone"],
@@ -285,7 +318,7 @@ def schedule_callback(
             "created_at": datetime.now(IST).isoformat(timespec="seconds"),
         }
         tickets.append(ticket)
-        _write_tickets(tickets)
+        _write_list(TICKETS_PATH, tickets)
 
     team = "a senior specialist" if escalation else "our team"
     return {

@@ -4,5 +4,6 @@ __pycache__/
 .env
 .pytest_cache/
 
-# Runtime ticket store (created on first schedule_callback)
+# Runtime stores (created on first use)
 data/tickets.json
+data/cancellations.json

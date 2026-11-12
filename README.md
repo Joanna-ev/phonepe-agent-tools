@@ -32,7 +32,7 @@ python -m pytest -q
 | `run_device_diagnostics` | `merchant_id` | status, battery, signal, last alert, issues, suggested fix |
 | `check_retention_options` | `merchant_id`, `reason_code` | offers for the reason (see below) |
 | `apply_retention_action` | `merchant_id`, `action`, optional `language` | confirmation message |
-| `process_cancellation` | `merchant_id`, `reason_code` | fee, pickup date (today + 3 days, IST), pickup items |
+| `process_cancellation` | `merchant_id`, `confirm` (bool), optional `reason_code` | `confirm: false` → quote only (fee, pickup date today + 3 days IST, items); `confirm: true` → records it, returns `CN-` id |
 | `schedule_callback` | `merchant_id`, `time`, optional `reason`, `escalation` (bool), `summary` | ticket id, e.g. `CB-1042` |
 
 Reason codes: `COST`, `NOT_USEFUL`, `SWITCHING_COMPETITOR` (all offer `switch_to_zero_rental` if on the monthly plan,
@@ -43,6 +43,14 @@ Cancellation fee: tenure under 6 months is ₹1 on the first request and ₹550 
 Tenure of 6–12 months is ₹1 on the first request and ₹400 after that. Tenure over 12 months is ₹0.
 
 Errors are returned as `{"error": "..."}` inside the result string so the agent can read them out. HTTP status stays 200.
+
+### Cancellations
+
+Call `process_cancellation` with `confirm: false` first. The agent reads the fee and pickup details to the merchant and gets
+their agreement before calling again with `confirm: true`. A missing `confirm` is an error, never a cancellation.
+Confirmed cancellations are appended to `data/cancellations.json` (override with `CANCELLATIONS_PATH`), with the same
+Render persistence caveat as tickets below. Confirming again for the same merchant returns the existing record instead of
+creating a duplicate.
 
 ### Callback tickets
 

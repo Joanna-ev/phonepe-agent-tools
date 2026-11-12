@@ -17,6 +17,13 @@ def temp_tickets(tmp_path, monkeypatch):
     return path
 
 
+@pytest.fixture(autouse=True)
+def temp_cancellations(tmp_path, monkeypatch):
+    path = tmp_path / "cancellations.json"
+    monkeypatch.setattr(tools, "CANCELLATIONS_PATH", path)
+    return path
+
+
 def vapi_call(name, arguments, call_id="call_1", legacy=False):
     """POST a Vapi-shaped tool-call webhook and return the decoded result."""
     call = {"id": call_id, "type": "function", "function": {"name": name, "arguments": arguments}}
@@ -187,12 +194,56 @@ def test_cancellation_fee(tenure, before, fee):
 
 
 @pytest.mark.parametrize("merchant_id, fee", [("M1001", 1), ("M1002", 1), ("M1003", 0)])
-def test_process_cancellation(merchant_id, fee):
-    out = vapi_call("process_cancellation", {"merchant_id": merchant_id, "reason_code": "COST"})
-    assert out["status"] == "cancellation_confirmed"
+def test_cancellation_quote_does_not_cancel(merchant_id, fee, temp_cancellations):
+    out = vapi_call("process_cancellation", {"merchant_id": merchant_id, "reason_code": "COST", "confirm": False})
+    assert out["status"] == "quote"
     assert out["cancellation_fee_inr"] == fee
     assert out["pickup_date"] == (tools.today_ist() + timedelta(days=3)).isoformat()
     assert out["pickup_items"] == ["speaker", "charging adapter"]
+    assert "cancellation_id" not in out
+    assert not temp_cancellations.exists()
+
+
+@pytest.mark.parametrize("merchant_id, fee", [("M1001", 1), ("M1002", 1), ("M1003", 0)])
+def test_cancellation_confirm_records_it(merchant_id, fee, temp_cancellations):
+    out = vapi_call("process_cancellation", {"merchant_id": merchant_id, "reason_code": "COST", "confirm": True})
+    assert out["status"] == "cancellation_confirmed"
+    assert out["cancellation_id"] == "CN-1001"
+    assert out["cancellation_fee_inr"] == fee
+    assert out["pickup_items"] == ["speaker", "charging adapter"]
+    (record,) = json.loads(temp_cancellations.read_text(encoding="utf-8"))
+    assert record["merchant_id"] == merchant_id
+    assert record["cancellation_fee_inr"] == fee
+    assert record["reason_code"] == "COST"
+
+
+def test_quote_and_confirm_match():
+    args = {"merchant_id": "M1002", "reason_code": "NOT_WORKING"}
+    quote = vapi_call("process_cancellation", {**args, "confirm": False})
+    done = vapi_call("process_cancellation", {**args, "confirm": True})
+    for key in ("cancellation_fee_inr", "pickup_date", "pickup_items"):
+        assert quote[key] == done[key]
+
+
+def test_cancellation_requires_confirm(temp_cancellations):
+    out = vapi_call("process_cancellation", {"merchant_id": "M1001", "reason_code": "COST"})
+    assert out == {"error": "Missing confirm."}
+    assert not temp_cancellations.exists()
+
+
+@pytest.mark.parametrize("raw, status", [("true", "cancellation_confirmed"), ("false", "quote"), ("no", "quote")])
+def test_confirm_coerced_from_strings(raw, status):
+    out = vapi_call("process_cancellation", {"merchant_id": "M1001", "confirm": raw})
+    assert out["status"] == status
+
+
+def test_repeated_confirm_does_not_duplicate(temp_cancellations):
+    first = vapi_call("process_cancellation", {"merchant_id": "M1001", "confirm": True})
+    second = vapi_call("process_cancellation", {"merchant_id": "M1001", "confirm": True})
+    other = vapi_call("process_cancellation", {"merchant_id": "M1002", "confirm": True})
+    assert first == second
+    assert other["cancellation_id"] == "CN-1002"
+    assert len(json.loads(temp_cancellations.read_text(encoding="utf-8"))) == 2
 
 
 # ---------------------------------------------------------------- schedule_callback
