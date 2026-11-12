@@ -46,7 +46,7 @@ def test_health():
 
 
 def test_arguments_as_json_string():
-    out = vapi_call("get_merchant_profile", json.dumps({"phone": "9000000001"}))
+    out = vapi_call("get_merchant_profile", json.dumps({"phone": "9876543210"}))
     assert out["merchant_id"] == "M1001"
 
 
@@ -57,7 +57,7 @@ def test_legacy_tool_with_tool_call_list():
 
 def test_multiple_calls_keep_ids_and_order():
     message = {"toolCallList": [
-        {"id": "a", "function": {"name": "get_merchant_profile", "arguments": {"phone": "9000000002"}}},
+        {"id": "a", "function": {"name": "get_merchant_profile", "arguments": {"phone": "9123456780"}}},
         {"id": "b", "function": {"name": "run_device_diagnostics", "arguments": {"merchant_id": "M1002"}}},
     ]}
     results = client.post("/vapi/tools", json={"message": message}).json()["results"]
@@ -79,17 +79,31 @@ def test_raw_body_is_logged(caplog):
     tools.logger.propagate = True  # let caplog see our dedicated logger
     try:
         with caplog.at_level("INFO", logger="vapi_tools"):
-            vapi_call("get_merchant_profile", {"phone": "9000000001"})
+            vapi_call("get_merchant_profile", {"phone": "9876543210"})
     finally:
         tools.logger.propagate = False
-    assert any("Raw request body" in r.message and "9000000001" in r.message for r in caplog.records)
+    assert any("Raw request body" in r.message and "9876543210" in r.message for r in caplog.records)
 
 
 # ---------------------------------------------------------------- get_merchant_profile
 
-@pytest.mark.parametrize("phone", ["9000000001", "+91 90000 00001", "+919000000001", "09000000001", "919000000001"])
+@pytest.mark.parametrize("phone", ["9876543210", "+91 98765 43210", "+919876543210", "09876543210", "919876543210"])
 def test_phone_normalisation(phone):
     assert vapi_call("get_merchant_profile", {"phone": phone})["name"] == "Ramesh Kirana"
+
+
+@pytest.mark.parametrize("phone, merchant_id", [
+    # M1002's own number starts with 91; it must not be mistaken for the country code.
+    ("9123456780", "M1002"), ("+91 91234 56780", "M1002"), ("919123456780", "M1002"), ("09123456780", "M1002"),
+    ("9988776655", "M1003"), ("+91-99887-76655", "M1003"),
+])
+def test_each_merchant_found_by_phone(phone, merchant_id):
+    assert vapi_call("get_merchant_profile", {"phone": phone})["merchant_id"] == merchant_id
+
+
+def test_old_mock_numbers_no_longer_match():
+    for old in ("9000000001", "9000000002", "9000000003"):
+        assert "error" in vapi_call("get_merchant_profile", {"phone": old})
 
 
 def test_unknown_phone():

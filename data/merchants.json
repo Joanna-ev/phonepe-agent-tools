@@ -2,7 +2,7 @@
   {
     "merchant_id": "M1001",
     "name": "Ramesh Kirana",
-    "phone": "9000000001",
+    "phone": "9876543210",
     "plan": "monthly",
     "monthly_fee_inr": 125,
     "tenure_months": 9,
@@ -19,7 +19,7 @@
   {
     "merchant_id": "M1002",
     "name": "Fathima Tea Stall",
-    "phone": "9000000002",
+    "phone": "9123456780",
     "plan": "monthly",
     "monthly_fee_inr": 125,
     "tenure_months": 4,
@@ -36,7 +36,7 @@
   {
     "merchant_id": "M1003",
     "name": "Suresh Mobiles",
-    "phone": "9000000003",
+    "phone": "9988776655",
     "plan": "zero_rental",
     "monthly_fee_inr": 25,
     "tenure_months": 14,

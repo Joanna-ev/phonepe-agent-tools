@@ -28,7 +28,7 @@ python -m pytest -q
 
 | Tool | Arguments | Returns |
 |---|---|---|
-| `get_merchant_profile` | `phone` (any format: `+91 90000 00001`, `09000000001`, …) | merchant id, plan, fee, tenure, language |
+| `get_merchant_profile` | `phone` (any format: `+91 98765 43210`, `09876543210`, …) | merchant id, plan, fee, tenure, language |
 | `run_device_diagnostics` | `merchant_id` | status, battery, signal, last alert, issues, suggested fix |
 | `check_retention_options` | `merchant_id`, `reason_code` | offers for the reason (see below) |
 | `apply_retention_action` | `merchant_id`, `action`, optional `language` | confirmation message |
@@ -67,7 +67,7 @@ and point `TICKETS_PATH` at it. Writes are serialised with an in-process lock, s
 curl -s -X POST http://localhost:8000/vapi/tools -H "Content-Type: application/json" -d '{
   "message": {"type": "tool-calls", "toolCallList": [
     {"id": "call_1", "type": "function",
-     "function": {"name": "get_merchant_profile", "arguments": {"phone": "+91 90000 00001"}}}
+     "function": {"name": "get_merchant_profile", "arguments": {"phone": "+91 98765 43210"}}}
   ]}}'
 ```
 

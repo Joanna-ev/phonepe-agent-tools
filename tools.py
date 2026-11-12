@@ -55,7 +55,7 @@ def today_ist():
 
 
 def normalise_phone(phone: Any) -> str:
-    """'+91 90000 00001', '09000000001', '919000000001' -> '9000000001'."""
+    """'+91 98765 43210', '09876543210', '919876543210' -> '9876543210'."""
     digits = re.sub(r"\D", "", str(phone or ""))
     if len(digits) > 10 and digits.startswith("91"):
         digits = digits[2:]
