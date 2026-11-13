@@ -28,7 +28,7 @@ python -m pytest -q
 
 | Tool | Arguments | Returns |
 |---|---|---|
-| `get_merchant_profile` | `phone` (any format: `+91 98765 43210`, `09876543210`, …) | merchant id, plan, fee, tenure, language |
+| `get_merchant_profile` | `phone` (any format: `+91 98765 43210`, `09876543210`, …) | merchant id, plan, fee, tenure, `speaker_alert_language` (the speaker's announcement language, not the call's) |
 | `run_device_diagnostics` | `merchant_id` | status, battery, signal, last alert, issues, suggested fix |
 | `check_retention_options` | `merchant_id`, `reason_code` | offers for the reason (see below) |
 | `apply_retention_action` | `merchant_id`, `action`, optional `language` | confirmation message |

@@ -106,6 +106,20 @@ def test_old_mock_numbers_no_longer_match():
         assert "error" in vapi_call("get_merchant_profile", {"phone": old})
 
 
+def test_profile_fields():
+    out = vapi_call("get_merchant_profile", {"phone": "9876543210"})
+    assert out == {
+        "merchant_id": "M1001",
+        "name": "Ramesh Kirana",
+        "plan": "monthly",
+        "monthly_fee_inr": 125,
+        "tenure_months": 9,
+        "payments_last_month": 410,
+        "speaker_alert_language": "Hindi",
+    }
+    assert "language" not in out
+
+
 def test_unknown_phone():
     assert "error" in vapi_call("get_merchant_profile", {"phone": "9999999999"})
 

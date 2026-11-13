@@ -133,7 +133,8 @@ def get_merchant_profile(phone: str) -> dict:
                 "monthly_fee_inr": m["monthly_fee_inr"],
                 "tenure_months": m["tenure_months"],
                 "payments_last_month": m["payments_last_month"],
-                "language": m["language"],
+                # The speaker's announcement language, not the language of this call.
+                "speaker_alert_language": m["language"],
             }
     raise ToolError("No merchant found for that phone number.")
 
