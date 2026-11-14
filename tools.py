@@ -19,6 +19,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+import callback_time
+import say
 import spoken
 
 logger = logging.getLogger("vapi_tools")
@@ -26,6 +28,7 @@ logger = logging.getLogger("vapi_tools")
 DATA_DIR = Path(__file__).resolve().parent / "data"
 TICKETS_PATH = Path(os.environ.get("TICKETS_PATH", DATA_DIR / "tickets.json"))
 CANCELLATIONS_PATH = Path(os.environ.get("CANCELLATIONS_PATH", DATA_DIR / "cancellations.json"))
+RETENTION_ACTIONS_PATH = Path(os.environ.get("RETENTION_ACTIONS_PATH", DATA_DIR / "retention_actions.json"))
 TICKET_ID_START = 1001
 UNKNOWN_MERCHANT_ID = "UNKNOWN"
 
@@ -34,7 +37,7 @@ IST = timezone(timedelta(hours=5, minutes=30))
 
 LOW_BATTERY_PERCENT = 15
 
-_store_lock = threading.Lock()  # guards tickets.json and cancellations.json
+_store_lock = threading.Lock()  # guards the tickets, cancellations and retention-action files
 
 
 class ToolError(Exception):
@@ -116,7 +119,7 @@ def _build_offer(name: str, merchant: dict) -> dict | None:
             "break_even_months": math.ceil(config["one_time_fee_inr"] / saving),
         }
     if name == "change_language":
-        return {"action": name, "current_language": merchant["language"]}
+        return {"action": name, "current_language": merchant["language"], **config}
     return {"action": name, **config}
 
 
@@ -147,10 +150,10 @@ def run_device_diagnostics(merchant_id: str) -> dict:
     d = m["device"]
     issues, fixes = [], []
     if d["battery"] < LOW_BATTERY_PERCENT:
-        issues.append("battery critically low")
+        issues.append(say.ISSUE_LOW_BATTERY)
         fixes.append("charge the speaker for 30 minutes")
     if d["signal"] == "weak":
-        issues.append("weak signal")
+        issues.append(say.ISSUE_WEAK_SIGNAL)
         fixes.append("move it closer to a window or the shop entrance")
     if d["status"] != "healthy":
         issues.insert(0, f"device is {d['status']}")
@@ -199,27 +202,46 @@ def apply_retention_action(merchant_id: str, action: str, language: str | None =
         valid = ", ".join(RULES["offers"])
         raise ToolError(f"Unknown action {action}. Use one of: {valid}.")
 
-    extra: dict = {}
+    # Details of what changed and when; say.retention_action() builds the sentences from these.
     if action == "switch_to_zero_rental":
         offer = _build_offer(action, m)
         if offer is None:
             raise ToolError(f"{m['name']} is already on the {spoken.plan_name(m['plan'])}.")
-        extra = {k: offer[k] for k in ("one_time_fee_inr", "new_monthly_fee_inr")}
-        message = (
-            f"Switched to the zero rental plan. One-time fee {spoken.rupees_en(offer['one_time_fee_inr'])}, "
-            f"then {spoken.rupees_en(offer['new_monthly_fee_inr'])} a month from the next cycle."
-        )
-    elif action == "remote_troubleshoot":
-        message = "Remote restart sent. The speaker should announce it is ready within 2 minutes."
-    elif action == "free_replacement":
-        eta = RULES["offers"][action]["eta_hours"]
-        message = f"Free replacement booked. The new speaker will arrive within {eta} hours."
-    else:  # change_language
-        target = f" to {language}" if language else ""
-        message = f"Speaker language will change{target} on its next sync, within 1 hour."
+        details = {k: offer[k] for k in ("one_time_fee_inr", "new_monthly_fee_inr")}
+    elif action == "change_language":
+        new_language = str(language).strip() if language and str(language).strip() else None
+        details = {"new_language": new_language, **RULES["offers"][action]}
+    else:
+        details = dict(RULES["offers"][action])
 
-    logger.info("Retention action applied: %s for %s", action, m["merchant_id"])
-    return {"status": "applied", "merchant_id": m["merchant_id"], "action": action, **extra, "message": message}
+    with _store_lock:
+        records = _read_list(RETENTION_ACTIONS_PATH)
+        # A retried call for the same change returns the original request, not a duplicate.
+        existing = next(
+            (r for r in records
+             if r["merchant_id"] == m["merchant_id"] and r["action"] == action
+             and r.get("new_language") == details.get("new_language")),
+            None,
+        )
+        if existing is None:
+            existing = {
+                "request_id": _next_id(records, "request_id", "RA"),
+                "merchant_id": m["merchant_id"],
+                "action": action,
+                **details,
+                "created_at": datetime.now(IST).isoformat(timespec="seconds"),
+            }
+            records.append(existing)
+            _write_list(RETENTION_ACTIONS_PATH, records)
+            logger.info("Retention action applied: %s %s for %s", existing["request_id"], action, m["merchant_id"])
+
+    return {
+        "status": "applied",
+        "merchant_id": m["merchant_id"],
+        "action": action,
+        "request_id": existing["request_id"],
+        **{k: existing[k] for k in details},
+    }
 
 
 def process_cancellation(merchant_id: str, confirm: Any, reason_code: str | None = None) -> dict:
@@ -314,6 +336,13 @@ def schedule_callback(
         raise ToolError("Please tell me a time for the callback.")
     escalation = _to_bool(escalation)
 
+    now = datetime.now(IST)
+    day, clock = callback_time.parse_callback_time(time, now)
+    if day is not None and (
+        day < now.date() or (clock is not None and datetime.combine(day, clock, IST) <= now)
+    ):
+        raise ToolError("That time has already passed. Please choose a later time.")
+
     with _store_lock:
         tickets = _read_list(TICKETS_PATH)
         ticket = {
@@ -322,6 +351,8 @@ def schedule_callback(
             "merchant_name": m["name"],
             "phone": m["phone"],
             "callback_time": str(time).strip(),
+            "callback_date": day.isoformat() if day else None,
+            "callback_clock": clock.strftime("%H:%M") if clock else None,
             "reason": reason,
             "escalation": escalation,
             "summary": summary,
@@ -331,13 +362,13 @@ def schedule_callback(
         tickets.append(ticket)
         _write_list(TICKETS_PATH, tickets)
 
-    team = "a senior specialist" if escalation else "our team"
     return {
         "status": "scheduled",
         "ticket_id": ticket["ticket_id"],
         "callback_time": ticket["callback_time"],
+        "callback_date": ticket["callback_date"],
+        "callback_clock": ticket["callback_clock"],
         "escalation": escalation,
-        "message": f"Callback booked with {team} for {ticket['callback_time']}.",
     }
 
 
@@ -376,9 +407,14 @@ def call_tool(name: str | None, args: dict) -> dict:
         logger.exception("Tool %s failed with args %s", name, args)
         return {"error": "Something went wrong on our side. Please try again."}
 
-    # Spoken fields are a convenience; a bug there must not lose the actual result.
+    # Spoken fields and sentences are a convenience; a bug there must not lose the actual result.
     try:
-        return spoken.add_spoken(result)
+        result = spoken.add_spoken(result)
     except Exception:
         logger.exception("Adding spoken fields failed for %s", name)
+        return result
+    try:
+        return say.add_say(name, result)
+    except Exception:
+        logger.exception("Adding say_en/say_hi failed for %s", name)
         return result

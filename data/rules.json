@@ -5,12 +5,16 @@
       "one_time_fee_inr": 999,
       "new_monthly_fee_inr": 25
     },
-    "remote_troubleshoot": {},
+    "remote_troubleshoot": {
+      "ready_within_minutes": 2
+    },
     "free_replacement": {
       "reason": "device fault",
       "eta_hours": 48
     },
-    "change_language": {}
+    "change_language": {
+      "sync_within_hours": 1
+    }
   },
   "reason_codes": {
     "COST": {

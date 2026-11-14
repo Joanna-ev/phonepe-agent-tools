@@ -6,6 +6,8 @@ chosen by field name:
     cost_per_payment_paise  -> <field>_spoken_en / <field>_spoken_hi   ("about thirty paisay per payment")
     *_months                -> <field>_spoken_en / <field>_spoken_hi   ("ten months" / "das mahine")
     payments_*              -> <field>_spoken_en / <field>_spoken_hi   ("four hundred ten payments")
+    *_hours, *_minutes      -> <field>_spoken_en / <field>_spoken_hi   ("forty-eight hours" / "artalees ghante")
+    *_clock ("HH:MM")       -> <field>_spoken_en / <field>_spoken_hi   ("eleven a.m." / "subah gyarah baje")
     *_percent               -> <field>_spoken_en / <field>_spoken_hi
     *_date (ISO string)     -> <field>_spoken_en / <field>_spoken_hi   ("the sixteenth of November")
     *_id (with digits)      -> <field>_spoken                          ("callback ticket one, zero, four, two")
@@ -59,6 +61,7 @@ _REFERENCE_KINDS = {
     "ticket_id": "callback ticket",
     "cancellation_id": "cancellation reference",
     "merchant_id": "merchant number",
+    "request_id": "request reference",
 }
 
 
@@ -140,6 +143,65 @@ def payments_hi(n: int) -> str:
     return f"{number_hi(n)} {'payment' if n == 1 else 'payments'}"
 
 
+def hours_en(n: int) -> str:
+    return f"{number_en(n)} {'hour' if n == 1 else 'hours'}"
+
+
+def hours_hi(n: int) -> str:
+    return f"{number_hi(n)} {'ghanta' if n == 1 else 'ghante'}"
+
+
+def minutes_en(n: int) -> str:
+    return f"{number_en(n)} {'minute' if n == 1 else 'minutes'}"
+
+
+def minutes_hi(n: int) -> str:
+    return f"{number_hi(n)} minute"
+
+
+def _parse_clock(hhmm: str) -> tuple[int, int]:
+    hour, minute = (int(p) for p in hhmm.split(":"))
+    if not (0 <= hour <= 23 and 0 <= minute <= 59):
+        raise ValueError(f"bad clock time {hhmm!r}")
+    return hour, minute
+
+
+def clock_en(hhmm: str) -> str:
+    """'11:00' -> 'eleven a.m.', '15:30' -> 'three thirty p.m.', '09:05' -> 'nine oh five a.m.'."""
+    hour, minute = _parse_clock(hhmm)
+    words = number_en(hour % 12 or 12)
+    if minute:
+        words += f" {'oh ' if minute < 10 else ''}{number_en(minute)}"
+    return f"{words} {'a.m.' if hour < 12 else 'p.m.'}"
+
+
+def clock_hi(hhmm: str) -> str:
+    """'11:00' -> 'subah gyarah baje', '15:30' -> 'dopahar teen baj kar tees minute'."""
+    hour, minute = _parse_clock(hhmm)
+    if 4 <= hour < 12:
+        period = "subah"
+    elif 12 <= hour < 16:
+        period = "dopahar"
+    elif 16 <= hour < 20:
+        period = "shaam"
+    else:
+        period = "raat"
+    h = number_hi(hour % 12 or 12)
+    return f"{period} {h} baj kar {number_hi(minute)} minute" if minute else f"{period} {h} baje"
+
+
+_WEEKDAYS_EN = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+_WEEKDAYS_HI = ["Somvaar", "Mangalvaar", "Budhvaar", "Guruvaar", "Shukravaar", "Shanivaar", "Ravivaar"]
+
+
+def weekday_en(d: date) -> str:
+    return _WEEKDAYS_EN[d.weekday()]
+
+
+def weekday_hi(d: date) -> str:
+    return _WEEKDAYS_HI[d.weekday()]
+
+
 def percent_en(n: int) -> str:
     return f"{number_en(n)} percent"
 
@@ -163,8 +225,17 @@ def reference(ref: str, kind: str = "reference number") -> str:
 
     Letters are dropped (the kind word says what the number is); digits are read one by one.
     """
-    digits = ", ".join(_ONES_EN[int(c)] for c in re.findall(r"\d", ref))
-    return f"{kind} {digits}"
+    return f"{kind} {digits_en(ref)}"
+
+
+def digits_en(ref: str) -> str:
+    """'CN-1001' -> 'one, zero, zero, one'."""
+    return ", ".join(_ONES_EN[int(c)] for c in re.findall(r"\d", ref))
+
+
+def digits_hi(ref: str) -> str:
+    """'CN-1001' -> 'ek, shunya, shunya, ek'."""
+    return ", ".join(_HI[int(c)] for c in re.findall(r"\d", ref))
 
 
 def plan_name(plan: str) -> str:
@@ -184,6 +255,12 @@ def _spoken_fields(key: str, value: Any) -> dict:
         return {f"{key}_spoken_en": months_en(value), f"{key}_spoken_hi": months_hi(value)}
     if key.startswith("payments_") and _is_int(value):
         return {f"{key}_spoken_en": payments_en(value), f"{key}_spoken_hi": payments_hi(value)}
+    if key.endswith("_hours") and _is_int(value):
+        return {f"{key}_spoken_en": hours_en(value), f"{key}_spoken_hi": hours_hi(value)}
+    if key.endswith("_minutes") and _is_int(value):
+        return {f"{key}_spoken_en": minutes_en(value), f"{key}_spoken_hi": minutes_hi(value)}
+    if key.endswith("_clock") and isinstance(value, str):
+        return {f"{key}_spoken_en": clock_en(value), f"{key}_spoken_hi": clock_hi(value)}
     if key.endswith("_percent") and _is_int(value):
         return {f"{key}_spoken_en": percent_en(value), f"{key}_spoken_hi": percent_hi(value)}
     if key.endswith("_date") and isinstance(value, str):

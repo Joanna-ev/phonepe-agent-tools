@@ -12,18 +12,7 @@ from main import app
 client = TestClient(app)
 
 
-@pytest.fixture(autouse=True)
-def temp_tickets(tmp_path, monkeypatch):
-    path = tmp_path / "tickets.json"
-    monkeypatch.setattr(tools, "TICKETS_PATH", path)
-    return path
-
-
-@pytest.fixture(autouse=True)
-def temp_cancellations(tmp_path, monkeypatch):
-    path = tmp_path / "cancellations.json"
-    monkeypatch.setattr(tools, "CANCELLATIONS_PATH", path)
-    return path
+# Data-file fixtures (temp_tickets, temp_cancellations, temp_retention_actions) live in conftest.py.
 
 
 def vapi_call(name, arguments, call_id="call_1", legacy=False):
@@ -176,6 +165,14 @@ def test_cost_offers_zero_rental_with_savings():
         "break_even_months": 10,
         "break_even_months_spoken_en": "ten months",
         "break_even_months_spoken_hi": "das mahine",
+        "say_en": (
+            "On the zero rental plan you pay a one-time fee of nine hundred ninety-nine rupees and then "
+            "twenty-five rupees a month, saving one hundred rupees every month, so it pays for itself in ten months."
+        ),
+        "say_hi": (
+            "Zero rental plan mein ek baar nau sau ninyanve rupaye ki fee lagti hai, phir har mahine sirf "
+            "pachchees rupaye, yaani har mahine ek sau rupaye ki bachat, aur das mahine mein fee ki bharpai ho jaati hai."
+        ),
     }
 
 
@@ -202,7 +199,10 @@ def test_not_working_offers_in_order():
 
 def test_language_or_volume():
     out = vapi_call("check_retention_options", {"merchant_id": "M1001", "reason_code": "LANGUAGE_OR_VOLUME"})
-    assert out["offers"] == [{"action": "change_language", "current_language": "Hindi"}]
+    (offer,) = out["offers"]
+    assert offer["action"] == "change_language" and offer["current_language"] == "Hindi"
+    assert offer["sync_within_hours"] == 1
+    assert "from Hindi" in offer["say_en"] and "Hindi se" in offer["say_hi"]
 
 
 def test_closing_or_moving_releases():
@@ -219,7 +219,9 @@ def test_unknown_reason_code():
 @pytest.mark.parametrize("action", ["switch_to_zero_rental", "remote_troubleshoot", "free_replacement", "change_language"])
 def test_apply_action(action):
     out = vapi_call("apply_retention_action", {"merchant_id": "M1002", "action": action})
-    assert out["status"] == "applied" and out["action"] == action and out["message"]
+    assert out["status"] == "applied" and out["action"] == action
+    assert out["request_id"] == "RA-1001"
+    assert out["say_en"] and out["say_hi"] and "message" not in out
 
 
 def test_apply_zero_rental_when_already_on_it():
@@ -344,7 +346,7 @@ def test_escalation_defaults_false_and_optional_fields(temp_tickets):
 def test_schedule_callback_for_unknown_merchant(merchant_id, temp_tickets):
     out = vapi_call("schedule_callback", {
         "merchant_id": merchant_id,
-        "time": "today 4 PM",
+        "time": "tomorrow 4 PM",
         "reason": "NOT_WORKING",
         "escalation": True,
         "summary": "Caller could not be identified by phone.",
@@ -395,7 +397,7 @@ def test_apply_zero_rental_has_spoken_money():
     out = vapi_call("apply_retention_action", {"merchant_id": "M1001", "action": "switch_to_zero_rental"})
     assert out["one_time_fee_inr_spoken_hi"] == "nau sau ninyanve rupaye"
     assert out["new_monthly_fee_inr_spoken_en"] == "twenty-five rupees"
-    assert "999" not in out["message"] and "nine hundred ninety-nine rupees" in out["message"]
+    assert "nine hundred ninety-nine rupees" in out["say_en"] and "nau sau ninyanve rupaye" in out["say_hi"]
 
 
 @pytest.mark.parametrize("confirm", [False, True])
@@ -469,10 +471,10 @@ def _spoken_items(obj):
 
 def test_spoken_references_have_no_letter_codes():
     refs = [(k, v) for r in _all_results() for k, v in _spoken_items(r) if k.endswith("_id_spoken")]
-    assert {k for k, _ in refs} == {"merchant_id_spoken", "cancellation_id_spoken", "ticket_id_spoken"}
+    assert {k for k, _ in refs} == {"merchant_id_spoken", "cancellation_id_spoken", "ticket_id_spoken", "request_id_spoken"}
     for key, value in refs:
         kind, digits = re.fullmatch(r"([a-z ]+?) ((?:[a-z]+, )*[a-z]+)", value).groups()
-        assert kind in {"merchant number", "cancellation reference", "callback ticket"}
+        assert kind in {"merchant number", "cancellation reference", "callback ticket", "request reference"}
         for word in digits.split(", "):
             assert word in {"zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"}
         for code in ("M", "CB", "CN", "C B", "C N"):

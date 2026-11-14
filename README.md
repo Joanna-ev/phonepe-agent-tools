@@ -61,6 +61,20 @@ English fields spell paise as `paisay` so English voices pronounce it correctly;
 
 Hindi is romanised and uses the Indian scale (sau, hazaar, lakh, karod). Whole numbers up to 99,99,99,999 are supported.
 
+### Ready-to-say sentences
+
+`say.py` adds `say_en` and `say_hi` to the results of `run_device_diagnostics`, `apply_retention_action`,
+`process_cancellation`, `schedule_callback`, and to each offer in `check_retention_options`.
+They are built after the spoken fields, from the result itself, so they can only quote amounts, dates, times and
+references that the result contains. `tests/test_say.py` checks this for every tool and merchant.
+
+`apply_retention_action` records each action in `data/retention_actions.json` (override with `RETENTION_ACTIONS_PATH`)
+and returns a `request_id` like `RA-1001`. Repeating the same action for the same merchant returns the same request.
+
+`schedule_callback` understands times like `tomorrow 11 AM`, `Monday 3:30 pm`, `5 pm`, or ISO (`2026-11-20T15:00+05:30`),
+and returns `callback_date` and `callback_clock` (IST). Times in the past are rejected. A bare hour with no a.m./p.m.
+is read as 8–11 a.m. or 12–7 p.m. Text it can't parse ("as soon as possible") is kept as-is and read back verbatim.
+
 Errors are returned as `{"error": "..."}` inside the result string so the agent can read them out. HTTP status stays 200.
 
 ### Cancellations
