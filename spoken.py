@@ -4,6 +4,8 @@ add_spoken() walks a tool result and adds spoken fields next to the numeric ones
 chosen by field name:
     *_inr                   -> <field>_spoken_en / <field>_spoken_hi   (rupees)
     cost_per_payment_paise  -> <field>_spoken_en / <field>_spoken_hi   ("about thirty paise per payment")
+    *_months                -> <field>_spoken_en / <field>_spoken_hi   ("ten months" / "das mahine")
+    payments_*              -> <field>_spoken_en / <field>_spoken_hi   ("four hundred ten payments")
     *_percent               -> <field>_spoken_en / <field>_spoken_hi
     *_date (ISO string)     -> <field>_spoken_en / <field>_spoken_hi   ("the sixteenth of November")
     *_id (with digits)      -> <field>_spoken                          ("C B, one zero four two")
@@ -116,6 +118,22 @@ def paise_per_payment_hi(n: int) -> str:
     return f"har payment par lagbhag {number_hi(n)} {'paisa' if n == 1 else 'paise'}"
 
 
+def months_en(n: int) -> str:
+    return f"{number_en(n)} {'month' if n == 1 else 'months'}"
+
+
+def months_hi(n: int) -> str:
+    return f"{number_hi(n)} {'mahina' if n == 1 else 'mahine'}"
+
+
+def payments_en(n: int) -> str:
+    return f"{number_en(n)} {'payment' if n == 1 else 'payments'}"
+
+
+def payments_hi(n: int) -> str:
+    return f"{number_hi(n)} {'payment' if n == 1 else 'payments'}"
+
+
 def percent_en(n: int) -> str:
     return f"{number_en(n)} percent"
 
@@ -156,6 +174,10 @@ def _spoken_fields(key: str, value: Any) -> dict:
         return {f"{key}_spoken_en": paise_per_payment_en(value), f"{key}_spoken_hi": paise_per_payment_hi(value)}
     if key.endswith("_inr") and _is_int(value):
         return {f"{key}_spoken_en": rupees_en(value), f"{key}_spoken_hi": rupees_hi(value)}
+    if key.endswith("_months") and _is_int(value):
+        return {f"{key}_spoken_en": months_en(value), f"{key}_spoken_hi": months_hi(value)}
+    if key.startswith("payments_") and _is_int(value):
+        return {f"{key}_spoken_en": payments_en(value), f"{key}_spoken_hi": payments_hi(value)}
     if key.endswith("_percent") and _is_int(value):
         return {f"{key}_spoken_en": percent_en(value), f"{key}_spoken_hi": percent_hi(value)}
     if key.endswith("_date") and isinstance(value, str):

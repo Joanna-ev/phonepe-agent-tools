@@ -50,6 +50,8 @@ Tenure of 6–12 months is ₹1 on the first request and ₹400 after that. Tenu
 |---|---|---|
 | `*_inr` | `<field>_spoken_en`, `<field>_spoken_hi` | `nine hundred ninety-nine rupees` / `nau sau ninyanve rupaye` |
 | `cost_per_payment_paise` | `<field>_spoken_en`, `<field>_spoken_hi` | `about thirty paise per payment` / `har payment par lagbhag tees paise` |
+| `*_months` | `<field>_spoken_en`, `<field>_spoken_hi` | `ten months` / `das mahine` |
+| `payments_*` | `<field>_spoken_en`, `<field>_spoken_hi` | `four hundred ten payments` / `chaar sau das payments` |
 | `*_percent` | `<field>_spoken_en`, `<field>_spoken_hi` | `seventy-eight percent` / `athattar percent` |
 | `*_date` | `<field>_spoken_en`, `<field>_spoken_hi` | `the sixteenth of November` / `solah November` |
 | `*_id` (containing digits) | `<field>_spoken` | `C B, one zero four two` |

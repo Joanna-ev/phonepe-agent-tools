@@ -61,6 +61,27 @@ def test_paise_per_payment():
     assert spoken.paise_per_payment_en(1) == "about one paisa per payment"
 
 
+def test_months_and_payments():
+    assert spoken.months_en(10) == "ten months"
+    assert spoken.months_hi(10) == "das mahine"
+    assert spoken.months_en(1) == "one month"
+    assert spoken.months_hi(1) == "ek mahina"
+    assert spoken.payments_en(410) == "four hundred ten payments"
+    assert spoken.payments_hi(410) == "chaar sau das payments"
+    assert spoken.payments_en(1) == "one payment"
+    assert spoken.payments_hi(1) == "ek payment"
+
+
+def test_add_spoken_months_and_payments():
+    out = spoken.add_spoken({"tenure_months": 14, "payments_last_month": 150, "break_even_months": 1})
+    assert out["tenure_months_spoken_en"] == "fourteen months"
+    assert out["tenure_months_spoken_hi"] == "chaudah mahine"
+    assert out["payments_last_month_spoken_en"] == "one hundred fifty payments"
+    assert out["payments_last_month_spoken_hi"] == "ek sau pachaas payments"
+    assert out["break_even_months_spoken_en"] == "one month"
+    assert out["break_even_months_spoken_hi"] == "ek mahina"
+
+
 @pytest.mark.parametrize("n, word", [
     (1, "first"), (2, "second"), (3, "third"), (4, "fourth"), (5, "fifth"), (8, "eighth"),
     (9, "ninth"), (12, "twelfth"), (16, "sixteenth"), (20, "twentieth"), (21, "twenty-first"),

@@ -119,7 +119,11 @@ def test_profile_fields():
         "monthly_fee_inr_spoken_en": "one hundred twenty-five rupees",
         "monthly_fee_inr_spoken_hi": "ek sau pachchees rupaye",
         "tenure_months": 9,
+        "tenure_months_spoken_en": "nine months",
+        "tenure_months_spoken_hi": "nau mahine",
         "payments_last_month": 410,
+        "payments_last_month_spoken_en": "four hundred ten payments",
+        "payments_last_month_spoken_hi": "chaar sau das payments",
         "speaker_alert_language": "Hindi",
     }
     assert "language" not in out
@@ -168,6 +172,8 @@ def test_cost_offers_zero_rental_with_savings():
         "monthly_saving_inr_spoken_en": "one hundred rupees",
         "monthly_saving_inr_spoken_hi": "ek sau rupaye",
         "break_even_months": 10,
+        "break_even_months_spoken_en": "ten months",
+        "break_even_months_spoken_hi": "das mahine",
     }
 
 
