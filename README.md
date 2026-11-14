@@ -42,6 +42,21 @@ plus `cost_per_payment_paise`), `NOT_WORKING` (`remote_troubleshoot` then `free_
 Cancellation fee: tenure under 6 months is ₹1 on the first request and ₹550 after that.
 Tenure of 6–12 months is ₹1 on the first request and ₹400 after that. Tenure over 12 months is ₹0.
 
+### Spoken fields
+
+`spoken.py` adds speakable versions next to numeric fields in every successful result, chosen by field name:
+
+| Field | Added | Example |
+|---|---|---|
+| `*_inr` | `<field>_spoken_en`, `<field>_spoken_hi` | `nine hundred ninety-nine rupees` / `nau sau ninyanve rupaye` |
+| `cost_per_payment_paise` | `<field>_spoken_en`, `<field>_spoken_hi` | `about thirty paise per payment` / `har payment par lagbhag tees paise` |
+| `*_percent` | `<field>_spoken_en`, `<field>_spoken_hi` | `seventy-eight percent` / `athattar percent` |
+| `*_date` | `<field>_spoken_en`, `<field>_spoken_hi` | `the sixteenth of November` / `solah November` |
+| `*_id` (containing digits) | `<field>_spoken` | `C B, one zero four two` |
+| `plan` | `plan_name_spoken` | `zero rental plan` |
+
+Hindi is romanised and uses the Indian scale (sau, hazaar, lakh, karod). Whole numbers up to 99,99,99,999 are supported.
+
 Errors are returned as `{"error": "..."}` inside the result string so the agent can read them out. HTTP status stays 200.
 
 ### Cancellations

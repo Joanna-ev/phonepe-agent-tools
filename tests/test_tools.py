@@ -4,6 +4,7 @@ from datetime import timedelta
 import pytest
 from fastapi.testclient import TestClient
 
+import spoken
 import tools
 from main import app
 
@@ -110,9 +111,13 @@ def test_profile_fields():
     out = vapi_call("get_merchant_profile", {"phone": "9876543210"})
     assert out == {
         "merchant_id": "M1001",
+        "merchant_id_spoken": "M, one zero zero one",
         "name": "Ramesh Kirana",
         "plan": "monthly",
+        "plan_name_spoken": "monthly plan",
         "monthly_fee_inr": 125,
+        "monthly_fee_inr_spoken_en": "one hundred twenty-five rupees",
+        "monthly_fee_inr_spoken_hi": "ek sau pachchees rupaye",
         "tenure_months": 9,
         "payments_last_month": 410,
         "speaker_alert_language": "Hindi",
@@ -148,12 +153,20 @@ def test_unknown_merchant():
 def test_cost_offers_zero_rental_with_savings():
     out = vapi_call("check_retention_options", {"merchant_id": "M1001", "reason_code": "COST"})
     assert out["cost_per_payment_paise"] == 30  # 12500 / 410 = 30.49
+    assert out["cost_per_payment_paise_spoken_en"] == "about thirty paise per payment"
+    assert out["cost_per_payment_paise_spoken_hi"] == "har payment par lagbhag tees paise"
     (offer,) = out["offers"]
     assert offer == {
         "action": "switch_to_zero_rental",
         "one_time_fee_inr": 999,
+        "one_time_fee_inr_spoken_en": "nine hundred ninety-nine rupees",
+        "one_time_fee_inr_spoken_hi": "nau sau ninyanve rupaye",
         "new_monthly_fee_inr": 25,
+        "new_monthly_fee_inr_spoken_en": "twenty-five rupees",
+        "new_monthly_fee_inr_spoken_hi": "pachchees rupaye",
         "monthly_saving_inr": 100,
+        "monthly_saving_inr_spoken_en": "one hundred rupees",
+        "monthly_saving_inr_spoken_hi": "ek sau rupaye",
         "break_even_months": 10,
     }
 
@@ -352,3 +365,64 @@ def test_corrupt_ticket_file_is_not_overwritten(temp_tickets):
     out = vapi_call("schedule_callback", {"merchant_id": "M1001", "time": "5 PM"})
     assert "error" in out
     assert temp_tickets.read_text(encoding="utf-8") == "{broken"
+
+
+# ---------------------------------------------------------------- spoken fields in tool results
+
+def test_diagnostics_battery_spoken():
+    out = vapi_call("run_device_diagnostics", {"merchant_id": "M1002"})
+    assert out["battery_percent_spoken_en"] == "four percent"
+    assert out["battery_percent_spoken_hi"] == "chaar percent"
+    assert out["merchant_id_spoken"] == "M, one zero zero two"
+
+
+def test_zero_rental_plan_name_spoken():
+    out = vapi_call("get_merchant_profile", {"phone": "9988776655"})
+    assert out["plan_name_spoken"] == "zero rental plan"
+    note = vapi_call("check_retention_options", {"merchant_id": "M1003", "reason_code": "COST"})["note"]
+    assert "zero rental plan" in note and "zero_rental" not in note
+
+
+def test_apply_zero_rental_has_spoken_money():
+    out = vapi_call("apply_retention_action", {"merchant_id": "M1001", "action": "switch_to_zero_rental"})
+    assert out["one_time_fee_inr_spoken_hi"] == "nau sau ninyanve rupaye"
+    assert out["new_monthly_fee_inr_spoken_en"] == "twenty-five rupees"
+    assert "999" not in out["message"] and "nine hundred ninety-nine rupees" in out["message"]
+
+
+@pytest.mark.parametrize("confirm", [False, True])
+def test_cancellation_spoken_fee_and_date(confirm):
+    out = vapi_call("process_cancellation", {"merchant_id": "M1001", "confirm": confirm})
+    pickup = tools.today_ist() + timedelta(days=3)
+    assert out["cancellation_fee_inr_spoken_en"] == "one rupee"
+    assert out["cancellation_fee_inr_spoken_hi"] == "ek rupaya"
+    assert out["pickup_date_spoken_en"] == spoken.date_en(pickup)
+    assert out["pickup_date_spoken_hi"] == spoken.date_hi(pickup)
+    if confirm:
+        assert out["cancellation_id_spoken"] == "C N, one zero zero one"
+
+
+def test_cancellation_zero_fee_spoken():
+    out = vapi_call("process_cancellation", {"merchant_id": "M1003", "confirm": False})
+    assert out["cancellation_fee_inr_spoken_en"] == "zero rupees"
+    assert out["cancellation_fee_inr_spoken_hi"] == "shunya rupaye"
+
+
+def test_ticket_id_spoken(temp_tickets):
+    temp_tickets.write_text(json.dumps([{"ticket_id": "CB-1041"}]), encoding="utf-8")
+    out = vapi_call("schedule_callback", {"merchant_id": "M1001", "time": "5 PM"})
+    assert out["ticket_id"] == "CB-1042"
+    assert out["ticket_id_spoken"] == "C B, one zero four two"
+
+
+def test_unknown_merchant_id_gets_no_spoken_reference():
+    out = vapi_call("schedule_callback", {"merchant_id": "UNKNOWN", "time": "5 PM"})
+    assert "merchant_id_spoken" not in out
+
+
+def test_spoken_failure_keeps_result(monkeypatch):
+    def boom(_):
+        raise RuntimeError("bug")
+    monkeypatch.setattr(spoken, "add_spoken", boom)
+    out = vapi_call("get_merchant_profile", {"phone": "9876543210"})
+    assert out["name"] == "Ramesh Kirana" and "plan_name_spoken" not in out

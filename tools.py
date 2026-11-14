@@ -19,6 +19,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+import spoken
+
 logger = logging.getLogger("vapi_tools")
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
@@ -185,7 +187,7 @@ def check_retention_options(merchant_id: str, reason_code: str) -> dict:
     if "recommendation" in rule:
         result["recommendation"] = rule["recommendation"]
     elif rule["offers"] and not offers:
-        result["note"] = f"No offers apply; merchant is already on the {m['plan']} plan."
+        result["note"] = f"No offers apply; merchant is already on the {spoken.plan_name(m['plan'])}."
     return result
 
 
@@ -196,13 +198,15 @@ def apply_retention_action(merchant_id: str, action: str, language: str | None =
         valid = ", ".join(RULES["offers"])
         raise ToolError(f"Unknown action {action}. Use one of: {valid}.")
 
+    extra: dict = {}
     if action == "switch_to_zero_rental":
         offer = _build_offer(action, m)
         if offer is None:
-            raise ToolError(f"{m['name']} is already on the {m['plan']} plan.")
+            raise ToolError(f"{m['name']} is already on the {spoken.plan_name(m['plan'])}.")
+        extra = {k: offer[k] for k in ("one_time_fee_inr", "new_monthly_fee_inr")}
         message = (
-            f"Switched to zero rental. One-time fee {offer['one_time_fee_inr']} rupees, "
-            f"then {offer['new_monthly_fee_inr']} rupees a month from the next cycle."
+            f"Switched to the zero rental plan. One-time fee {spoken.rupees_en(offer['one_time_fee_inr'])}, "
+            f"then {spoken.rupees_en(offer['new_monthly_fee_inr'])} a month from the next cycle."
         )
     elif action == "remote_troubleshoot":
         message = "Remote restart sent. The speaker should announce it is ready within 2 minutes."
@@ -214,7 +218,7 @@ def apply_retention_action(merchant_id: str, action: str, language: str | None =
         message = f"Speaker language will change{target} on its next sync, within 1 hour."
 
     logger.info("Retention action applied: %s for %s", action, m["merchant_id"])
-    return {"status": "applied", "merchant_id": m["merchant_id"], "action": action, "message": message}
+    return {"status": "applied", "merchant_id": m["merchant_id"], "action": action, **extra, "message": message}
 
 
 def process_cancellation(merchant_id: str, confirm: Any, reason_code: str | None = None) -> dict:
@@ -364,9 +368,16 @@ def call_tool(name: str | None, args: dict) -> dict:
         return {"error": f"Missing {', '.join(missing)}."}
 
     try:
-        return fn(**kwargs)
+        result = fn(**kwargs)
     except ToolError as e:
         return {"error": str(e)}
     except Exception:
         logger.exception("Tool %s failed with args %s", name, args)
         return {"error": "Something went wrong on our side. Please try again."}
+
+    # Spoken fields are a convenience; a bug there must not lose the actual result.
+    try:
+        return spoken.add_spoken(result)
+    except Exception:
+        logger.exception("Adding spoken fields failed for %s", name)
+        return result
