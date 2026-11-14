@@ -49,12 +49,14 @@ Tenure of 6–12 months is ₹1 on the first request and ₹400 after that. Tenu
 | Field | Added | Example |
 |---|---|---|
 | `*_inr` | `<field>_spoken_en`, `<field>_spoken_hi` | `nine hundred ninety-nine rupees` / `nau sau ninyanve rupaye` |
-| `cost_per_payment_paise` | `<field>_spoken_en`, `<field>_spoken_hi` | `about thirty paise per payment` / `har payment par lagbhag tees paise` |
+| `cost_per_payment_paise` | `<field>_spoken_en`, `<field>_spoken_hi` | `about thirty paisay per payment` / `har payment par lagbhag tees paise` |
 | `*_months` | `<field>_spoken_en`, `<field>_spoken_hi` | `ten months` / `das mahine` |
 | `payments_*` | `<field>_spoken_en`, `<field>_spoken_hi` | `four hundred ten payments` / `chaar sau das payments` |
 | `*_percent` | `<field>_spoken_en`, `<field>_spoken_hi` | `seventy-eight percent` / `athattar percent` |
 | `*_date` | `<field>_spoken_en`, `<field>_spoken_hi` | `the sixteenth of November` / `solah November` |
-| `*_id` (containing digits) | `<field>_spoken` | `C B, one zero four two` |
+| `*_id` (containing digits) | `<field>_spoken` (digits only, with a type word) | `callback ticket one, zero, four, two`, `cancellation reference …`, `merchant number …` |
+
+English fields spell paise as `paisay` so English voices pronounce it correctly; Hindi fields keep `paise`.
 | `plan` | `plan_name_spoken` | `zero rental plan` |
 
 Hindi is romanised and uses the Indian scale (sau, hazaar, lakh, karod). Whole numbers up to 99,99,99,999 are supported.

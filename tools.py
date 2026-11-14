@@ -131,6 +131,7 @@ def get_merchant_profile(phone: str) -> dict:
             return {
                 "merchant_id": m["merchant_id"],
                 "name": m["name"],
+                "owner_first_name": m["owner_first_name"],
                 "plan": m["plan"],
                 "monthly_fee_inr": m["monthly_fee_inr"],
                 "tenure_months": m["tenure_months"],

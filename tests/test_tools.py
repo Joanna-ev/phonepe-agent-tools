@@ -1,4 +1,5 @@
 import json
+import re
 from datetime import timedelta
 
 import pytest
@@ -111,8 +112,9 @@ def test_profile_fields():
     out = vapi_call("get_merchant_profile", {"phone": "9876543210"})
     assert out == {
         "merchant_id": "M1001",
-        "merchant_id_spoken": "M, one zero zero one",
+        "merchant_id_spoken": "merchant number one, zero, zero, one",
         "name": "Ramesh Kirana",
+        "owner_first_name": "Ramesh",
         "plan": "monthly",
         "plan_name_spoken": "monthly plan",
         "monthly_fee_inr": 125,
@@ -157,7 +159,7 @@ def test_unknown_merchant():
 def test_cost_offers_zero_rental_with_savings():
     out = vapi_call("check_retention_options", {"merchant_id": "M1001", "reason_code": "COST"})
     assert out["cost_per_payment_paise"] == 30  # 12500 / 410 = 30.49
-    assert out["cost_per_payment_paise_spoken_en"] == "about thirty paise per payment"
+    assert out["cost_per_payment_paise_spoken_en"] == "about thirty paisay per payment"
     assert out["cost_per_payment_paise_spoken_hi"] == "har payment par lagbhag tees paise"
     (offer,) = out["offers"]
     assert offer == {
@@ -379,7 +381,7 @@ def test_diagnostics_battery_spoken():
     out = vapi_call("run_device_diagnostics", {"merchant_id": "M1002"})
     assert out["battery_percent_spoken_en"] == "four percent"
     assert out["battery_percent_spoken_hi"] == "chaar percent"
-    assert out["merchant_id_spoken"] == "M, one zero zero two"
+    assert out["merchant_id_spoken"] == "merchant number one, zero, zero, two"
 
 
 def test_zero_rental_plan_name_spoken():
@@ -405,7 +407,7 @@ def test_cancellation_spoken_fee_and_date(confirm):
     assert out["pickup_date_spoken_en"] == spoken.date_en(pickup)
     assert out["pickup_date_spoken_hi"] == spoken.date_hi(pickup)
     if confirm:
-        assert out["cancellation_id_spoken"] == "C N, one zero zero one"
+        assert out["cancellation_id_spoken"] == "cancellation reference one, zero, zero, one"
 
 
 def test_cancellation_zero_fee_spoken():
@@ -418,7 +420,7 @@ def test_ticket_id_spoken(temp_tickets):
     temp_tickets.write_text(json.dumps([{"ticket_id": "CB-1041"}]), encoding="utf-8")
     out = vapi_call("schedule_callback", {"merchant_id": "M1001", "time": "5 PM"})
     assert out["ticket_id"] == "CB-1042"
-    assert out["ticket_id_spoken"] == "C B, one zero four two"
+    assert out["ticket_id_spoken"] == "callback ticket one, zero, four, two"
 
 
 def test_unknown_merchant_id_gets_no_spoken_reference():
@@ -432,3 +434,52 @@ def test_spoken_failure_keeps_result(monkeypatch):
     monkeypatch.setattr(spoken, "add_spoken", boom)
     out = vapi_call("get_merchant_profile", {"phone": "9876543210"})
     assert out["name"] == "Ramesh Kirana" and "plan_name_spoken" not in out
+
+
+@pytest.mark.parametrize("phone, first_name", [
+    ("9876543210", "Ramesh"), ("9123456780", "Fathima"), ("9988776655", "Suresh"),
+])
+def test_profile_owner_first_name(phone, first_name):
+    assert vapi_call("get_merchant_profile", {"phone": phone})["owner_first_name"] == first_name
+
+
+def _all_results():
+    """One successful result from every tool, covering every spoken field type."""
+    return [
+        vapi_call("get_merchant_profile", {"phone": "9876543210"}),
+        vapi_call("run_device_diagnostics", {"merchant_id": "M1002"}),
+        vapi_call("check_retention_options", {"merchant_id": "M1001", "reason_code": "COST"}),
+        vapi_call("check_retention_options", {"merchant_id": "M1003", "reason_code": "COST"}),
+        vapi_call("apply_retention_action", {"merchant_id": "M1001", "action": "switch_to_zero_rental"}),
+        vapi_call("process_cancellation", {"merchant_id": "M1002", "confirm": True}),
+        vapi_call("schedule_callback", {"merchant_id": "M1001", "time": "5 PM"}),
+    ]
+
+
+def _spoken_items(obj):
+    if isinstance(obj, list):
+        for item in obj:
+            yield from _spoken_items(item)
+    elif isinstance(obj, dict):
+        for key, value in obj.items():
+            if "_spoken" in key:
+                yield key, value
+            yield from _spoken_items(value)
+
+
+def test_spoken_references_have_no_letter_codes():
+    refs = [(k, v) for r in _all_results() for k, v in _spoken_items(r) if k.endswith("_id_spoken")]
+    assert {k for k, _ in refs} == {"merchant_id_spoken", "cancellation_id_spoken", "ticket_id_spoken"}
+    for key, value in refs:
+        kind, digits = re.fullmatch(r"([a-z ]+?) ((?:[a-z]+, )*[a-z]+)", value).groups()
+        assert kind in {"merchant number", "cancellation reference", "callback ticket"}
+        for word in digits.split(", "):
+            assert word in {"zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"}
+        for code in ("M", "CB", "CN", "C B", "C N"):
+            assert not re.search(rf"\b{code}\b", value), value
+
+
+def test_no_english_spoken_field_says_paise():
+    english = [v for r in _all_results() for k, v in _spoken_items(r) if k.endswith("_spoken_en")]
+    assert any("paisay" in v for v in english)
+    assert not any(re.search(r"\bpaise\b", v) for v in english)

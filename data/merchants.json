@@ -2,6 +2,7 @@
   {
     "merchant_id": "M1001",
     "name": "Ramesh Kirana",
+    "owner_first_name": "Ramesh",
     "phone": "9876543210",
     "plan": "monthly",
     "monthly_fee_inr": 125,
@@ -19,6 +20,7 @@
   {
     "merchant_id": "M1002",
     "name": "Fathima Tea Stall",
+    "owner_first_name": "Fathima",
     "phone": "9123456780",
     "plan": "monthly",
     "monthly_fee_inr": 125,
@@ -36,6 +38,7 @@
   {
     "merchant_id": "M1003",
     "name": "Suresh Mobiles",
+    "owner_first_name": "Suresh",
     "phone": "9988776655",
     "plan": "zero_rental",
     "monthly_fee_inr": 25,

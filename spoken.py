@@ -3,12 +3,12 @@
 add_spoken() walks a tool result and adds spoken fields next to the numeric ones,
 chosen by field name:
     *_inr                   -> <field>_spoken_en / <field>_spoken_hi   (rupees)
-    cost_per_payment_paise  -> <field>_spoken_en / <field>_spoken_hi   ("about thirty paise per payment")
+    cost_per_payment_paise  -> <field>_spoken_en / <field>_spoken_hi   ("about thirty paisay per payment")
     *_months                -> <field>_spoken_en / <field>_spoken_hi   ("ten months" / "das mahine")
     payments_*              -> <field>_spoken_en / <field>_spoken_hi   ("four hundred ten payments")
     *_percent               -> <field>_spoken_en / <field>_spoken_hi
     *_date (ISO string)     -> <field>_spoken_en / <field>_spoken_hi   ("the sixteenth of November")
-    *_id (with digits)      -> <field>_spoken                          ("C B, one zero four two")
+    *_id (with digits)      -> <field>_spoken                          ("callback ticket one, zero, four, two")
     plan                    -> plan_name_spoken                        ("zero rental plan")
 
 Numbers use the Indian scale (hazaar, lakh, karod) and are supported below 100 crore.
@@ -55,6 +55,11 @@ _ORDINAL_IRREGULAR = {
     "eight": "eighth", "nine": "ninth", "twelve": "twelfth",
 }
 _PLAN_NAMES = {"monthly": "monthly plan", "zero_rental": "zero rental plan"}
+_REFERENCE_KINDS = {
+    "ticket_id": "callback ticket",
+    "cancellation_id": "cancellation reference",
+    "merchant_id": "merchant number",
+}
 
 
 def _below_100_en(n: int) -> str:
@@ -111,7 +116,8 @@ def rupees_hi(n: int) -> str:
 
 
 def paise_per_payment_en(n: int) -> str:
-    return f"about {number_en(n)} {'paisa' if n == 1 else 'paise'} per payment"
+    # 'paisay' so English TTS voices don't say "paze"; the Hindi field keeps 'paise'.
+    return f"about {number_en(n)} {'paisa' if n == 1 else 'paisay'} per payment"
 
 
 def paise_per_payment_hi(n: int) -> str:
@@ -152,13 +158,13 @@ def date_hi(d: date) -> str:
     return f"{number_hi(d.day)} {_MONTHS[d.month - 1]}"
 
 
-def reference(ref: str) -> str:
-    """'CB-1042' -> 'C B, one zero four two'; letters spelled out, digits read one by one."""
-    groups = re.findall(r"[A-Za-z]+|\d+", ref)
-    return ", ".join(
-        " ".join(_ONES_EN[int(c)] for c in g) if g.isdigit() else " ".join(g.upper())
-        for g in groups
-    )
+def reference(ref: str, kind: str = "reference number") -> str:
+    """('CB-1042', 'callback ticket') -> 'callback ticket one, zero, four, two'.
+
+    Letters are dropped (the kind word says what the number is); digits are read one by one.
+    """
+    digits = ", ".join(_ONES_EN[int(c)] for c in re.findall(r"\d", ref))
+    return f"{kind} {digits}"
 
 
 def plan_name(plan: str) -> str:
@@ -184,7 +190,7 @@ def _spoken_fields(key: str, value: Any) -> dict:
         d = date.fromisoformat(value)
         return {f"{key}_spoken_en": date_en(d), f"{key}_spoken_hi": date_hi(d)}
     if key.endswith("_id") and isinstance(value, str) and re.search(r"\d", value):
-        return {f"{key}_spoken": reference(value)}
+        return {f"{key}_spoken": reference(value, _REFERENCE_KINDS.get(key, "reference number"))}
     if key == "plan" and isinstance(value, str):
         return {"plan_name_spoken": plan_name(value)}
     return {}

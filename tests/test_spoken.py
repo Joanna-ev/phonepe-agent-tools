@@ -56,7 +56,7 @@ def test_money_examples_from_spec():
 
 
 def test_paise_per_payment():
-    assert spoken.paise_per_payment_en(30) == "about thirty paise per payment"
+    assert spoken.paise_per_payment_en(30) == "about thirty paisay per payment"
     assert spoken.paise_per_payment_hi(30) == "har payment par lagbhag tees paise"
     assert spoken.paise_per_payment_en(1) == "about one paisa per payment"
 
@@ -97,14 +97,34 @@ def test_dates():
     assert spoken.date_en(date(2027, 1, 1)) == "the first of January"
 
 
-@pytest.mark.parametrize("ref, out", [
-    ("ZR-1042", "Z R, one zero four two"),
-    ("CB-1042", "C B, one zero four two"),
-    ("cn-1001", "C N, one zero zero one"),
-    ("M1003", "M, one zero zero three"),
+@pytest.mark.parametrize("ref, kind, out", [
+    ("CB-1001", "callback ticket", "callback ticket one, zero, zero, one"),
+    ("CB-1042", "callback ticket", "callback ticket one, zero, four, two"),
+    ("cn-1001", "cancellation reference", "cancellation reference one, zero, zero, one"),
+    ("M1003", "merchant number", "merchant number one, zero, zero, three"),
 ])
-def test_reference(ref, out):
-    assert spoken.reference(ref) == out
+def test_reference(ref, kind, out):
+    assert spoken.reference(ref, kind) == out
+
+
+def test_reference_default_kind():
+    assert spoken.reference("ZR-1042") == "reference number one, zero, four, two"
+
+
+@pytest.mark.parametrize("key, value, out", [
+    ("ticket_id", "CB-1001", "callback ticket one, zero, zero, one"),
+    ("cancellation_id", "CN-1001", "cancellation reference one, zero, zero, one"),
+    ("merchant_id", "M1001", "merchant number one, zero, zero, one"),
+    ("order_id", "OR-77", "reference number seven, seven"),
+])
+def test_add_spoken_reference_kinds(key, value, out):
+    assert spoken.add_spoken({key: value})[f"{key}_spoken"] == out
+
+
+def test_paise_spelled_paisay_only_in_english():
+    out = spoken.add_spoken({"cost_per_payment_paise": 17})
+    assert out["cost_per_payment_paise_spoken_en"] == "about seventeen paisay per payment"
+    assert out["cost_per_payment_paise_spoken_hi"] == "har payment par lagbhag satrah paise"
 
 
 def test_plan_names():
