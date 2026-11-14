@@ -372,6 +372,31 @@ def schedule_callback(
     }
 
 
+# ---------------------------------------------------------------- admin
+
+def reset_runtime_data() -> dict:
+    """Delete the runtime stores so the next call starts from the original mock state.
+
+    merchants.json and rules.json are never written at runtime, so they need no reset.
+    Returns how many records each store held.
+    """
+    stores = {
+        "tickets": TICKETS_PATH,
+        "cancellations": CANCELLATIONS_PATH,
+        "retention_actions": RETENTION_ACTIONS_PATH,
+    }
+    cleared = {}
+    with _store_lock:
+        for name, path in stores.items():
+            try:
+                cleared[name] = len(_read_list(path))
+            except (OSError, ValueError):
+                cleared[name] = None  # unreadable or corrupt; removed anyway
+            path.unlink(missing_ok=True)
+    logger.warning("Runtime data reset: %s", cleared)
+    return {"status": "reset", "cleared": cleared}
+
+
 # ---------------------------------------------------------------- dispatch
 
 TOOLS = {

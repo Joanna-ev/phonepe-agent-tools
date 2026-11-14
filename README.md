@@ -94,6 +94,21 @@ merchant name or phone, so put identifying details in `summary`. Other unrecogni
 Note that Render's filesystem is ephemeral, so tickets are lost on every redeploy or restart unless you attach a persistent disk
 and point `TICKETS_PATH` at it. Writes are serialised with an in-process lock, so run a single worker.
 
+## Resetting between tests
+
+The tools never modify `merchants.json` or `rules.json`, but they do write tickets, cancellations and retention actions,
+which change later results (a repeated confirm returns the earlier `CN-` cancellation, ticket numbers keep rising).
+`POST /admin/reset` deletes those three files so the next call starts from the original mock state.
+
+It requires the `X-Admin-Token` header to equal the `ADMIN_TOKEN` environment variable, and is disabled (503) when
+`ADMIN_TOKEN` is unset. On Render, `render.yaml` generates the value; find it under the service's **Environment** tab.
+
+```powershell
+Invoke-RestMethod -Method Post -Uri https://phonepe-agent-tools.onrender.com/admin/reset -Headers @{ "X-Admin-Token" = "YOUR_TOKEN" }
+```
+
+Locally, set the variable before starting the server: `$env:ADMIN_TOKEN = "dev-secret"; uvicorn main:app --port 8000`.
+
 ## Sample request
 
 ```bash

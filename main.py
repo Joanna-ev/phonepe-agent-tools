@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import secrets
 from typing import Any, Iterator
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Header, Request
 from fastapi.responses import JSONResponse
 
 import tools
@@ -25,6 +27,17 @@ app = FastAPI(title="PhonePe agent tools")
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok"}
+
+
+@app.post("/admin/reset")
+def admin_reset(x_admin_token: str | None = Header(default=None)):
+    """Clear tickets, cancellations and retention actions. Needs header X-Admin-Token: $ADMIN_TOKEN."""
+    expected = os.environ.get("ADMIN_TOKEN")
+    if not expected:
+        return JSONResponse(status_code=503, content={"error": "Reset is disabled. Set the ADMIN_TOKEN environment variable."})
+    if not x_admin_token or not secrets.compare_digest(x_admin_token, expected):
+        return JSONResponse(status_code=401, content={"error": "Missing or wrong X-Admin-Token header."})
+    return tools.reset_runtime_data()
 
 
 def parse_arguments(raw: Any) -> dict:
